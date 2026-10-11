@@ -37,7 +37,7 @@ const seedRecipes=[
 ];
 const defaults={profile:null,recipes:seedRecipes,plan:{},pantry:[],extras:[],checked:[]};
 let state=load();let page='week';
-function load(){try{return {...defaults,...JSON.parse(localStorage.getItem('mesaData')||'{}')}}catch{return {...defaults}}}
+function load(){try{const data=JSON.parse(localStorage.getItem('mesaData')||'{}');return {...defaults,...data,recipes:[...seedRecipes,...(Array.isArray(data.recipes)?data.recipes:[]).filter(r=>r.custom)]}}catch{return {...defaults}}}
 function save(){localStorage.setItem('mesaData',JSON.stringify(state));render()}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(msg){document.getElementById('toastroot').innerHTML=`<div class="toast">${esc(msg)}</div>`;setTimeout(()=>document.getElementById('toastroot').innerHTML='',2200)}
