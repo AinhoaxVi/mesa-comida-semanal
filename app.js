@@ -39,7 +39,9 @@
     document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.page===state.page));
   }
   async function loadSession() {
-    const {data:{user},error:e}=await state.db.auth.getUser();if(e)throw e;
+    const {data:{session},error:se}=await state.db.auth.getSession();if(se)throw se;
+    let user=null;
+    if(session){const {data,error:e}=await state.db.auth.getUser();if(e)throw e;user=data.user}
     state.user=user; state.profile=null;state.home=null;state.member=null;state.data={};
     if(!user){render();return}
     const {data:p,error:pe}=await q('profiles',{user_id:user.id}).maybeSingle();if(pe)throw pe;state.profile=p;
