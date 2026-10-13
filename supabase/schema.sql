@@ -175,6 +175,7 @@ language sql stable security definer set search_path = '' as $$
   )
 $$;
 revoke all on function public.allowed_recipes(uuid) from public;
+revoke all on function public.allowed_recipes(uuid) from anon;
 grant execute on function public.allowed_recipes(uuid) to authenticated;
 
 create function private.notify_task() returns trigger language plpgsql security definer set search_path = '' as $$
