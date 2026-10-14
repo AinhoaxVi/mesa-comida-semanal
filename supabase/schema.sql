@@ -192,6 +192,18 @@ end $$;
 revoke all on function public.create_household(text,jsonb,jsonb) from public,anon;
 grant execute on function public.create_household(text,jsonb,jsonb) to authenticated;
 
+create or replace function public.send_test_notification(hid uuid) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare notice_id uuid;
+begin
+  if auth.uid() is null or not private.is_member(hid) then raise exception 'El hogar no está vinculado a tu cuenta'; end if;
+  insert into public.notifications(household_id,recipient_id,actor_id,body)
+    values(hid,auth.uid(),auth.uid(),'🔔 Las notificaciones de Casa a Punto están activadas') returning id into notice_id;
+  return notice_id;
+end $$;
+revoke all on function public.send_test_notification(uuid) from public,anon;
+grant execute on function public.send_test_notification(uuid) to authenticated;
+
 -- Returns an anonymous recipe selection. Members cannot read one another's profile.
 -- Text matching is only a suggestion filter; food labels require human review.
 create function public.allowed_recipes(hid uuid) returns table(recipe_id uuid)
