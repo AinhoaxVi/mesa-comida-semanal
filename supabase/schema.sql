@@ -157,6 +157,41 @@ create policy push_delete on public.push_subscriptions for delete to authenticat
 revoke update on public.notifications from authenticated;
 grant update(read_at) on public.notifications to authenticated;
 
+create or replace function public.create_household(home_name text, initial_products jsonb default '[]', initial_recipes jsonb default '[]') returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare actor uuid := auth.uid(); home_id uuid; actor_label text;
+begin
+  if actor is null then raise exception 'Inicia sesión antes de crear el hogar'; end if;
+  if home_name is null or length(trim(home_name)) not between 1 and 80 then raise exception 'Introduce un nombre de hogar de 1 a 80 caracteres'; end if;
+  if jsonb_typeof(initial_products) is distinct from 'array' or jsonb_typeof(initial_recipes) is distinct from 'array' then raise exception 'El catálogo debe contener listas'; end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(actor::text,0));
+  select p.display_name into actor_label from public.profiles p where p.user_id=actor;
+  if actor_label is null then raise exception 'Guarda tu perfil antes de crear el hogar'; end if;
+  select m.household_id into home_id from public.household_members m where m.user_id=actor order by m.household_id limit 1;
+  if home_id is null then
+    select h.id into home_id from public.households h where h.owner_id=actor
+      and not exists(select 1 from public.household_members m where m.household_id=h.id)
+      order by h.created_at,h.id limit 1 for update;
+    if home_id is null then
+      insert into public.households(owner_id,name) values(actor,trim(home_name)) returning id into home_id;
+    else
+      update public.households set name=trim(home_name) where id=home_id and owner_id=actor;
+    end if;
+    insert into public.household_members(household_id,user_id,role,label) values(home_id,actor,'admin',actor_label);
+  end if;
+  insert into public.products(household_id,slug,name,package_size,unit,package_type,category)
+    select home_id,x.slug,x.name,x.package_size,x.unit,x.package_type,x.category
+    from jsonb_to_recordset(initial_products) as x(slug text,name text,package_size numeric,unit text,package_type text,category text)
+    on conflict(household_id,slug) do nothing;
+  insert into public.recipes(household_id,slug,name,category,minutes,servings,enabled,ingredients)
+    select home_id,x.slug,x.name,coalesce(x.category,'personalizado'),coalesce(x.minutes,30),coalesce(x.servings,2),coalesce(x.enabled,true),coalesce(x.ingredients,'[]'::jsonb)
+    from jsonb_to_recordset(initial_recipes) as x(slug text,name text,category text,minutes int,servings int,enabled boolean,ingredients jsonb)
+    on conflict(household_id,slug) do nothing;
+  return home_id;
+end $$;
+revoke all on function public.create_household(text,jsonb,jsonb) from public,anon;
+grant execute on function public.create_household(text,jsonb,jsonb) to authenticated;
+
 -- Returns an anonymous recipe selection. Members cannot read one another's profile.
 -- Text matching is only a suggestion filter; food labels require human review.
 create function public.allowed_recipes(hid uuid) returns table(recipe_id uuid)
