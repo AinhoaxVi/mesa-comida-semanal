@@ -124,7 +124,7 @@ create policy own_profile_update on public.profiles for update to authenticated 
 create policy households_select on public.households for select to authenticated using(private.is_member(id) or owner_id=(select auth.uid()));
 create policy households_insert on public.households for insert to authenticated with check(owner_id=(select auth.uid()));
 create policy households_update on public.households for update to authenticated using(private.is_admin(id)) with check(private.is_admin(id));
-create policy members_select on public.household_members for select to authenticated using(private.is_member(household_id));
+create policy members_select on public.household_members for select to authenticated using(user_id=(select auth.uid()) or private.is_member(household_id));
 create policy members_insert on public.household_members for insert to authenticated with check(
   (private.is_admin(household_id) and role='member') or
   (user_id=(select auth.uid()) and role='admin' and exists(select 1 from public.households h where h.id=household_members.household_id and h.owner_id=(select auth.uid())) and not private.has_members(household_id))
